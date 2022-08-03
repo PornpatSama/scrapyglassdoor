@@ -7,30 +7,21 @@ import pandas as pd
 import math
 from scrapy.exceptions import CloseSpider
 import csv
-from scrapy_splash import SplashRequest
 
 class MoorSpider(scrapy.Spider):
     name = 'Moor'
     allowed_domains = ['glassdoor.com']
-    start_urls = ['https://www.glassdoor.com/Explore/browse-companies.htm']
-    # https://www.glassdoor.com/profile/login_input.htmh
+    start_urls = ['https://www.glassdoor.com/profile/login_input.htm']
     page_number = 3
     items = []
 
-    def start_requests(self):
-        for url in self.start_urls:
-            yield SplashRequest(
-            url,
-            self.parse,
-            args={'wait': 10},
-            )
-    '''
+
     def parse(self,response):
         #### (1)
         token = response.css('body').re(r"gdToken\":\"(.*?)\",")[0]
         #### (2)
         yield FormRequest('https://www.glassdoor.com/profile/ajax/loginSecureAjax.htm', formdata={'username':'likej41679@94jo.com','password':'1a2b3c4d','gdToken':token}, callback=self.startscraper)
-    '''
+    
     #industry 200001 - 200048
     #sgoc(job function: art/design, consulting)1001-1023
     
@@ -42,7 +33,7 @@ class MoorSpider(scrapy.Spider):
 
         for sgoc in range(sgoc_start_id,1003):
             for industry in range(industry_start_id,200003):
-                yield SplashRequest(url="https://www.glassdoor.com/Explore/browse-companies.htm?overall_rating_low=0&page=1&sgoc={sgoc}&industry={industry}".format(sgoc = sgoc, industry = industry), callback=self.startscraper2,args={'wait': 10},)
+                yield Request("https://www.glassdoor.com/Explore/browse-companies.htm?overall_rating_low=0&page=1&sgoc={sgoc}&industry={industry}".format(sgoc = sgoc, industry = industry), callback=self.startscraper2)
     
 # LIMIT 999 Pages
 # = partitioning -> start with a
@@ -68,11 +59,11 @@ class MoorSpider(scrapy.Spider):
         for sgoc in range(1001,1002):
                 for industry in range(200001,200002):
                     for page in range(1, 3):
-                        yield SplashRequest(url = "https://www.glassdoor.com/Explore/browse-companies.htm?overall_rating_low=0&page={page}&sgoc={sgoc}&industry={industry}".format(page = page, sgoc = sgoc, industry = industry), callback=self.startscraper3,args={'wait': 10},)
+                        yield Request("https://www.glassdoor.com/Explore/browse-companies.htm?overall_rating_low=0&page={page}&sgoc={sgoc}&industry={industry}".format(page = page, sgoc = sgoc, industry = industry), callback=self.startscraper3)
 
     def startscraper3(self,response):
-        for comp_review_link in response.xpath("//div[@class='col-12 col-lg-4 mt-lg-0 mt-std d-flex justify-content-between justify-content-lg-end order-6 order-lg-1']/a[@data-test='cell-Reviews-url']/@href"):
-            yield SplashRequest(url = "https://www.glassdoor.com"+comp_review_link.get(), callback = self.parse_comp_metric,args={'wait': 10},) 
+        for comp_review_link in response.xpath("//div[@class='col-12 col-lg-4 mt-lg-0 mt-std d-flex justify-content-between justify-content-lg-end order-6 order-lg-1']/a[@data-test='cell-Salaries-url']/@href"):
+            yield response.follow(comp_review_link.get(), callback=self.parse_comp_metric)
     
 
     def parse_comp_metric(self, response):
@@ -83,7 +74,7 @@ class MoorSpider(scrapy.Spider):
             #HTML script is either one of these versions
             company_metric_v1 = response.xpath("//a[@class='eiCell cell {metric} ']/span[@class='num eiHeaderLink']/text()".format(metric = metric)).get()
             company_metric_v2 = response.xpath("//a[@class='eiCell cell {metric} active']/span[@class='num eiHeaderLink']/text()".format(metric = metric)).get()
-            company_metric_v3 = response.xpath("//a[@datatest='ei-nav-{metric}-link']/div[@class='count']/text()".format(metric = metric)).get()
+            company_metric_v3 = response.xpath("//a[@datatest='ei-nav-{metric}-link']/div[@data-test='ei-nav-{metric}-count']/text()".format(metric = metric)).get()
             
 
             if(company_metric_v1) is not None:
@@ -110,9 +101,7 @@ class MoorSpider(scrapy.Spider):
                 company_photos = company_metric
 
         company_name = response.xpath("//div[@class='header cell info']/p[@class='h1 strong tightAll']/span[@class='d-inline-flex align-items-center']/text()").get()
-        a = response.xpath("//div[@class='eiHeader css-1xfx8cn e1162btd0']").get()
-        yield{'Job_Title' : response.xpath("//div[@class='smarterNavContainer initialStick css-1ei3jl1 e1dmlihw0']").get()}
-        '''
+
         yield{
             'comp_url': response.url,
             'comp_name': company_name,
@@ -123,7 +112,6 @@ class MoorSpider(scrapy.Spider):
             'benefits': company_benefits, 
             'photos': company_photos
         }
-        '''
     
         
         
